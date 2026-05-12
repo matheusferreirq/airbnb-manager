@@ -54,6 +54,11 @@ export async function requestNotificationPermission() {
   }
 }
 
+export function getNotificationPermission() {
+  if (typeof Notification === "undefined") return "unsupported";
+  return Notification.permission;
+}
+
 // ── Listener de mensagens em foreground ─────────────────────────────────────
 export function onForegroundMessage(callback) {
   if (!messaging) return;

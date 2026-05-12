@@ -703,7 +703,7 @@ export default function App() {
             }`}
           >
             <Icon type={t.icon} className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{t.label}</span>
+            <span>{t.label}</span>
           </button>
         ))}
       </div>

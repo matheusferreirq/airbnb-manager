@@ -1,0 +1,2 @@
+# Este arquivo indica ao GitHub Pages para não processar o site com Jekyll
+# Isso evita problemas com arquivos começando com underscore como _redirects

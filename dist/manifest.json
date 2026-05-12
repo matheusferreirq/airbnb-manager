@@ -1,0 +1,80 @@
+{
+  "name": "Meus Flats",
+  "short_name": "Flats",
+  "description": "Gestão de reservas, diárias e autorizações de Airbnb",
+  "start_url": "/airbnb-manager/",
+  "scope": "/airbnb-manager/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#7c3aed",
+  "background_color": "#ffffff",
+  "categories": ["productivity", "business"],
+  "screenshots": [
+    {
+      "src": "/airbnb-manager/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/airbnb-manager/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/airbnb-manager/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/airbnb-manager/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/airbnb-manager/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/airbnb-manager/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova Reserva",
+      "short_name": "Reserva",
+      "description": "Criar uma nova reserva",
+      "url": "/airbnb-manager/?tab=reservas",
+      "icons": [
+        {
+          "src": "/airbnb-manager/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Meus Flats",
+      "short_name": "Flats",
+      "description": "Gerenciar flats e diárias",
+      "url": "/airbnb-manager/?tab=flats",
+      "icons": [
+        {
+          "src": "/airbnb-manager/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

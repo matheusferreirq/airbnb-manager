@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/airbnb-manager/sw.js', { scope: '/airbnb-manager/' })})}

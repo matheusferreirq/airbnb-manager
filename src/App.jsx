@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { requestNotificationPermission, onForegroundMessage, saveReservaRemota, deleteReservaRemota } from "./firebase.js";
+import { requestNotificationPermission, getNotificationPermission, onForegroundMessage, saveReservaRemota, deleteReservaRemota } from "./firebase.js";
 
 // ─── ICON COMPONENT ──────────────────────────────────────────────────────────
 function Icon({ type, className = "w-5 h-5", animated = false }) {
@@ -63,7 +63,21 @@ const buildPayMsg = (flat, diarias) => {
   return `Oi Pai! Segue o pagamento da diarista do flat ${flat.name}:\n\n${lines}\n\nTotal: R$ ${total.toFixed(2)}\n\nPode transferir para ela quando puder. Obrigado!`;
 };
 
-// ─── SHARED UI ────────────────────────────────────────────────────────────────
+const flatTheme = flatId => flatId === "alphaville"
+  ? {
+      accent: "from-sky-400 via-cyan-400 to-blue-500",
+      chip: "bg-sky-500/15 text-sky-200 border-sky-500/20",
+      dot: "bg-sky-400",
+      label: "Alphaville",
+      tone: "Residência ampla"
+    }
+  : {
+      accent: "from-amber-400 via-orange-400 to-rose-500",
+      chip: "bg-amber-500/15 text-amber-200 border-amber-500/20",
+      dot: "bg-amber-400",
+      label: "Butantã",
+      tone: "Apartamento urbano"
+    };
 
 function Badge({ color, children }) {
   const colorMap = {
@@ -82,18 +96,19 @@ function Btn({ onClick, disabled, variant = "ghost", children, full, small, icon
     ghost: "btn-ghost",
     primary: "btn-primary",
     green: "btn-success",
+    success: "btn-success",
+    secondary: "btn-secondary",
     blue: "btn-info",
     red: "btn-danger",
-    purple: "btn-primary",
-    teal: "btn-success",
-    secondary: "btn-secondary",
+    white: "bg-white text-violet-700 hover:bg-slate-50 border border-slate-200 shadow-sm",
+    dark: "bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700"
   };
   const btnClass = variantMap[variant] || variantMap.ghost;
   return (
     <button 
       onClick={onClick} 
       disabled={disabled} 
-      className={`${btnClass} ${full ? "w-full" : "flex-1"} ${small ? "px-2.5 py-1 text-xs" : ""} btn-hover-lift group`}
+      className={`btn ${btnClass} ${full ? "w-full" : ""} ${small ? "text-xs px-2 py-1" : ""} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
     >
       {icon && <span className="mr-2 inline-flex items-center">{icon}</span>}
       {children}
@@ -125,17 +140,20 @@ function FlatSelector({ flats, value, onChange }) {
   return (
     <div className="flex gap-2 mb-4 flex-wrap">
       {flats.map(f => (
-        <button 
-          key={f.id} 
-          onClick={() => onChange(f.id)} 
-          className={`flex-1 min-w-[100px] px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 btn-hover-lift ${
+        <button
+          key={f.id}
+          onClick={() => onChange(f.id)}
+          className={`flex-1 min-w-[132px] px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 btn-hover-lift text-left ${
             value === f.id
-              ? "bg-violet-100 text-violet-700 border border-violet-300 shadow-md"
-              : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+              ? `${flatTheme(f.id).chip} shadow-md`
+              : "bg-slate-900/70 text-slate-300 border border-slate-700 hover:border-slate-500"
           }`}
         >
-          <Icon type={f.iconType || "home"} className="w-4 h-4 inline-block mr-2" />
-          {f.name}
+          <span className={`h-2.5 w-2.5 rounded-full inline-block mr-2 ${flatTheme(f.id).dot}`} />
+          <span className="block">
+            <span className="block text-sm font-semibold leading-tight">{f.name}</span>
+            <span className="block text-[11px] text-slate-400 font-medium leading-tight mt-0.5">{flatTheme(f.id).tone}</span>
+          </span>
         </button>
       ))}
     </div>
@@ -189,12 +207,13 @@ function Toast({ show }) {
 }
 
 // ─── TAB RESERVAS ─────────────────────────────────────────────────────────────
-function TabReservas({ state, setState, setTab, copy }) {
+function TabReservas({ state, setState, setTab }) {
   const [modal, setModal] = useState(null);
   const today = todayStr();
 
   const addReserva = async ({ flatId, guests, checkin, checkout }) => {
     const flat = state.flats.find(f => f.id === flatId);
+    if (!flat) return;
     const res = { id: Date.now(), flatId, flatName: flat.name, guests, checkin, checkout, authorized: false };
     setState(s => ({ ...s, reservas: [...s.reservas, res].sort((a, b) => a.checkin.localeCompare(b.checkin)) }));
     try { await saveReservaRemota(res); } catch (e) { }
@@ -202,9 +221,11 @@ function TabReservas({ state, setState, setTab, copy }) {
   };
 
   const toggleAuth = async id => {
-    setState(s => ({ ...s, reservas: s.reservas.map(r => r.id === id ? { ...r, authorized: !r.authorized } : r) }));
-    const r = state.reservas.find(r => r.id === id);
-    try { await saveReservaRemota({ ...r, authorized: !r.authorized }); } catch (e) { }
+    const current = state.reservas.find(r => r.id === id);
+    if (!current) return;
+    const updated = { ...current, authorized: !current.authorized };
+    setState(s => ({ ...s, reservas: s.reservas.map(r => r.id === id ? updated : r) }));
+    try { await saveReservaRemota(updated); } catch (e) { }
   };
 
   const deleteRes = async id => {
@@ -213,53 +234,80 @@ function TabReservas({ state, setState, setTab, copy }) {
   };
 
   const loadToAuth = r => {
-    setState(s => ({ ...s, auth: { flatId: r.flatId, paxList: [...r.guests], checkin: r.checkin, checkout: r.checkout } } ));
+    setState(s => ({ ...s, auth: { flatId: r.flatId, paxList: [...r.guests], checkin: r.checkin, checkout: r.checkout } }));
     setTab("auth");
   };
 
   const todayCI = state.reservas.filter(r => r.checkin === today && !r.authorized);
-  const soonCI = state.reservas.filter(r => { const d = daysUntil(r.checkin); return d > 0 && d <= 2 && !r.authorized; });
+  const soonCI = state.reservas.filter(r => {
+    const d = daysUntil(r.checkin);
+    return d > 0 && d <= 2 && !r.authorized;
+  });
   const active = state.reservas.filter(r => r.checkin >= today && !r.authorized);
   const past = state.reservas.filter(r => r.checkin < today || r.authorized);
 
   const ReservaCard = ({ r }) => {
     const d = daysUntil(r.checkin);
     const isToday = r.checkin === today;
-    const alert = isToday && !r.authorized ? "red" : d >= 0 && d <= 2 && !r.authorized ? "yellow" : null;
-    let bc = "blue", bt = `em ${d} dia${d !== 1 ? "s" : ""}`;
-    if (r.authorized) { bc = "green"; bt = "Autorizado"; }
-    else if (isToday) { bc = "red"; bt = "Hoje!"; }
-    else if (d < 0) { bc = "gray"; bt = "Passou"; }
-    else if (d <= 2) { bc = "yellow"; }
     const flat = state.flats.find(f => f.id === r.flatId) || { name: r.flatName || r.flatId, iconType: "home" };
-    
+    const theme = flatTheme(flat.id || r.flatId);
+    const badge = r.authorized ? "green" : isToday ? "red" : d <= 2 ? "yellow" : "blue";
+    const label = r.authorized ? "Autorizado" : isToday ? "Hoje!" : d < 0 ? "Passou" : `${d} dia${d === 1 ? "" : "s"}`;
+
     return (
-      <div className={`card card-hover animate-slide-up ${alert === "red" ? "border-red-200 bg-red-50" : alert === "yellow" ? "border-amber-200 bg-amber-50" : ""}`}>
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-xs text-slate-500 font-medium flex items-center gap-2">
-            <Icon type={flat.iconType || "home"} className="w-4 h-4 text-violet-600" />
-            {flat.name}
-          </span>
-          <Badge color={bc}>{bt}</Badge>
+      <div className="card card-hover animate-slide-up overflow-hidden border-l-4 border-slate-700">
+        <div className={`h-1.5 rounded-full bg-gradient-to-r ${theme.accent} -mx-4 -mt-4 mb-4`} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${theme.accent} flex items-center justify-center text-white shadow-md`}>
+              <Icon type={flat.iconType || "home"} className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-slate-100 text-lg leading-tight">{flat.name}</div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${theme.chip}`}>{theme.label}</span>
+                <span className="text-xs text-slate-400">{theme.tone}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge color={badge}>{label}</Badge>
+            <button onClick={() => deleteRes(r.id)} className="text-slate-500 hover:text-red-400 hover:scale-110 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10">
+              <Icon type="close" className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-        <div className="text-sm mb-3 space-y-1">
-          {r.guests.map((g, i) => <div key={i} className="animate-slide-left"><span className="text-xs text-slate-400">PAX {i + 1} </span>{g}</div>)}
+
+        <div className="space-y-2 text-sm text-slate-200 mb-4">
+          {r.guests.map((g, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400 min-w-[52px] pt-0.5">PAX {i + 1}</span>
+              <span className="break-words">{g}</span>
+            </div>
+          ))}
         </div>
-        <div className="text-xs text-slate-400 mb-4 flex items-center gap-2">
-          <Icon type="calendar" className="w-3.5 h-3.5" />
-          {fmt(r.checkin)} → {fmt(r.checkout)}
+
+        <div className="flex items-center justify-between py-3 border-t border-slate-700/60 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center text-xs font-semibold text-white">
+              {flat.name.split(" ").map(w => w[0]).slice(0, 2).join("")}
+            </div>
+            <div>
+              <div className="text-sm font-medium text-slate-100">{flat.name}</div>
+              <div className="text-xs text-slate-500">{fmt(r.checkin)} → {fmt(r.checkout)}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge color={badge}>{label}</Badge>
+            <Btn variant="blue" small onClick={() => loadToAuth(r)} icon={<Icon type="clipboard" className="w-4 h-4" />}>Auth</Btn>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Btn variant="blue" small onClick={() => loadToAuth(r)} icon={<Icon type="clipboard" className="w-4 h-4" />}>Auth</Btn>
-          <Btn variant={r.authorized ? "ghost" : "success"} small onClick={() => toggleAuth(r.id)} icon={r.authorized ? <Icon type="undo" className="w-4 h-4" /> : <Icon type="checkmark" className="w-4 h-4" />}>
-            {r.authorized ? "Desmarcar" : "Autorizado"}
+
+        <div className="flex gap-2 flex-wrap">
+          <Btn variant={r.authorized ? "green" : "ghost"} small onClick={() => toggleAuth(r.id)} icon={<Icon type="checkmark" className="w-4 h-4" />}>
+            {r.authorized ? "Autorizado" : "Autorizar"}
           </Btn>
-          <button 
-            onClick={() => deleteRes(r.id)} 
-            className="px-2 py-1 text-sm border border-slate-200 rounded-lg bg-white text-slate-300 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-all duration-200 btn-hover-lift"
-          >
-            <Icon type="close" className="w-4 h-4" />
-          </button>
+          <Btn variant="primary" small onClick={() => loadToAuth(r)} icon={<Icon type="clipboard" className="w-4 h-4" />}>Autorização</Btn>
         </div>
       </div>
     );
@@ -267,8 +315,13 @@ function TabReservas({ state, setState, setTab, copy }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Reservas</div>
+        <Btn variant="primary" small onClick={() => setModal({ paxList: [""], flatId: state.flats[0]?.id || "", checkin: "", checkout: "" })}>+ Nova</Btn>
+      </div>
+
       {todayCI.length > 0 && (
-        <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 text-sm text-red-700 leading-relaxed animate-slide-up shadow-md">
+        <div className="bg-red-500/10 border-l-4 border-red-400 rounded-lg p-4 text-sm text-red-200 leading-relaxed animate-slide-up shadow-md">
           <strong className="flex items-center gap-2 mb-1">
             <Icon type="calendar" className="w-5 h-5" />
             Check-in hoje
@@ -276,26 +329,21 @@ function TabReservas({ state, setState, setTab, copy }) {
           <div className="ml-7">Autorização pendente em {todayCI.map(r => state.flats.find(f => f.id === r.flatId)?.name || r.flatName).join(" e ")}</div>
         </div>
       )}
+
       {!todayCI.length && soonCI.length > 0 && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4 text-sm text-amber-700 leading-relaxed animate-slide-up shadow-md">
+        <div className="bg-amber-500/10 border-l-4 border-amber-400 rounded-lg p-4 text-sm text-amber-200 leading-relaxed animate-slide-up shadow-md">
           <strong className="flex items-center gap-2 mb-1">
             <Icon type="calendar" className="w-5 h-5" />
-            {soonCI.length} check-in{soonCI.length > 1 ? "s" : ""} nos próximos 2 dias
+            Próximos check-ins
           </strong>
-          <div className="ml-7">Lembre de enviar a autorização</div>
+          <div className="ml-7">{soonCI.map(r => state.flats.find(f => f.id === r.flatId)?.name || r.flatName).join(" e ")}</div>
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Próximas reservas</span>
-        <Btn variant="primary" small onClick={() => setModal({ paxList: [""], flatId: state.flats[0]?.id, checkin: "", checkout: "" })}>+ Nova</Btn>
-      </div>
-
-      {active.length === 0 && <div className="text-sm text-slate-400 text-center py-8">Nenhuma reserva pendente.</div>}
       {active.map(r => <ReservaCard key={r.id} r={r} />)}
 
       {past.length > 0 && <>
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-6">Histórico</div>
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-6">Histórico</div>
         {past.map(r => <ReservaCard key={r.id} r={r} />)}
       </>}
 
@@ -313,7 +361,7 @@ function TabReservas({ state, setState, setTab, copy }) {
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Datas</label>
               <div className="grid grid-cols-2 gap-3">
-                {[["Check-in", "checkin"], ["Check-out", "checkout"]].map(([label, field]) => (
+                {[['Check-in', 'checkin'], ['Check-out', 'checkout']].map(([label, field]) => (
                   <div key={field}>
                     <div className="text-xs text-slate-500 mb-1">{label}</div>
                     <input type="date" value={modal[field]} onChange={e => setModal(m => ({ ...m, [field]: e.target.value }))} className="input" />
@@ -332,6 +380,7 @@ function TabReservas({ state, setState, setTab, copy }) {
           </div>
         </Modal>
       )}
+
     </div>
   );
 }
@@ -371,23 +420,28 @@ function TabFlats({ state, setState, copy }) {
         const total = pend.reduce((a, d) => a + d.value, 0);
         const nc = pend.length === 0 ? "green" : pend.length >= 3 ? "red" : "yellow";
         const nt = pend.length === 0 ? "Em dia" : pend.length >= 3 ? `${pend.length} pendentes ⚡` : `${pend.length} pendente${pend.length > 1 ? "s" : ""}`;
+        const theme = flatTheme(flat.id);
         return (
-          <div key={flat.id} className="card card-hover animate-slide-up">
+          <div key={flat.id} className={`card card-hover animate-slide-up overflow-hidden border-l-4 ${flat.id === "alphaville" ? "border-sky-400 ring-1 ring-sky-500/15" : "border-amber-400 ring-1 ring-amber-500/15"}`}>
+            <div className={`h-1.5 rounded-full bg-gradient-to-r ${theme.accent} -mx-4 -mt-4 mb-4`} />
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white shadow-md">
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${theme.accent} flex items-center justify-center text-white shadow-md`}>
                   <Icon type={flat.iconType || "home"} className="w-6 h-6" />
                 </div>
-                <div>
-                  <div className="font-semibold text-slate-900">{flat.name}</div>
-                  <div className="text-xs text-slate-500">Propriedade</div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-100">{flat.name}</div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${theme.chip}`}>{theme.label}</span>
+                    <span className="text-xs text-slate-400">{theme.tone}</span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge color={nc}>{nt}</Badge>
                 <button 
                   onClick={() => setModal({ type: "remove", flatId: flat.id, name: flat.name })} 
-                  className="text-slate-300 hover:text-red-500 hover:scale-110 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-50"
+                  className="text-slate-500 hover:text-red-400 hover:scale-110 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10"
                 >
                   <Icon type="close" className="w-5 h-5" />
                 </button>
@@ -396,26 +450,26 @@ function TabFlats({ state, setState, copy }) {
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               {[["Pendentes", pend.length], ["A pagar", `R$ ${total.toFixed(2)}`]].map(([label, val]) => (
-                <div key={label} className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-3 hover:shadow-md transition-all duration-200">
-                  <div className="text-xs text-slate-500 mb-1 font-medium">{label}</div>
-                  <div className="text-xl font-semibold text-slate-900">{val}</div>
+                <div key={label} className="rounded-xl p-3 bg-slate-950/60 border border-slate-700/60 hover:shadow-md transition-all duration-200">
+                  <div className="text-xs text-slate-400 mb-1 font-medium">{label}</div>
+                  <div className="text-xl font-semibold text-slate-100">{val}</div>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center justify-between py-3 border-t border-slate-200 mb-4">
+            <div className="flex items-center justify-between py-3 border-t border-slate-700/60 mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-200 to-violet-400 flex items-center justify-center text-xs font-semibold text-violet-700">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center text-xs font-semibold text-white">
                   {fd.diarista.split(" ").map(w => w[0]).slice(0, 2).join("")}
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-slate-900">{fd.diarista}</div>
+                  <div className="text-sm font-medium text-slate-100">{fd.diarista}</div>
                   <div className="text-xs text-slate-500">R$ {fd.rate.toFixed(2)} / diária</div>
                 </div>
               </div>
               <button 
                 onClick={() => setModal({ type: "edit", flatId: flat.id, name: fd.diarista, rate: String(fd.rate) })} 
-                className="text-xs text-slate-400 hover:text-violet-600 underline transition-colors font-medium hover:scale-105"
+                  className="text-xs text-slate-400 hover:text-violet-300 underline transition-colors font-medium hover:scale-105"
               >
                 <Icon type="edit" className="w-4 h-4 inline-block mr-1" />
                 editar
@@ -427,19 +481,19 @@ function TabFlats({ state, setState, copy }) {
               <Btn variant="success" small disabled={pend.length === 0} onClick={() => setModal({ type: "send", flatId: flat.id, flat, diarias: fd.diarias })} icon={<Icon type="send" className="w-4 h-4" />}>Enviar</Btn>
             </div>
 
-            <div className="border-t border-slate-200 pt-3">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Histórico</div>
+            <div className="border-t border-slate-700/60 pt-3">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Histórico</div>
               {fd.diarias.length === 0
-                ? <div className="text-xs text-slate-400 text-center py-3">Nenhuma diária registrada</div>
+                ? <div className="text-xs text-slate-500 text-center py-3">Nenhuma diária registrada</div>
                 : <div className="space-y-2">
                   {fd.diarias.map(d => (
-                    <div key={d.id} className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0 hover:bg-slate-50 px-2 -mx-2 rounded transition-all duration-200 animate-slide-left">
+                    <div key={d.id} className="flex items-center gap-2 py-2 border-b border-slate-800 last:border-0 hover:bg-slate-950/60 px-2 -mx-2 rounded transition-all duration-200 animate-slide-left">
                       <span className="text-xs text-slate-400 min-w-[35px]">{fmt(d.date)}</span>
-                      <span className="text-sm font-medium text-slate-900 flex-1">R$ {d.value.toFixed(2)}</span>
+                      <span className="text-sm font-medium text-slate-100 flex-1">R$ {d.value.toFixed(2)}</span>
                       <Badge color={d.paid ? "green" : "yellow"}>{d.paid ? "Pago" : "Pendente"}</Badge>
                       <button 
                         onClick={() => deleteDiaria(flat.id, d.id)} 
-                        className="text-slate-300 hover:text-red-500 hover:scale-110 transition-all duration-200 p-1 rounded hover:bg-red-50"
+                        className="text-slate-500 hover:text-red-400 hover:scale-110 transition-all duration-200 p-1 rounded hover:bg-red-500/10"
                       >
                         <Icon type="close" className="w-4 h-4" />
                       </button>
@@ -593,23 +647,23 @@ function TabConfig({ state, setState }) {
   const enableNotifications = async () => {
     setStatus("Solicitando permissão...");
     const token = await requestNotificationPermission();
-    if (token) {
+    if (getNotificationPermission() === "granted") {
       setState(s => ({ ...s, notificationsEnabled: true }));
-      setStatus("Notificações ativadas!");
+      setStatus(token ? "Notificações ativadas!" : "Permissão concedida neste dispositivo.");
     } else {
-      setStatus("Permissão negada. Verifique as configurações.");
+      setStatus("Permissão não concedida pelo navegador.");
     }
   };
 
   return (
     <div className="space-y-4">
       <div className="card">
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Notificações push</div>
-        <p className="text-sm text-slate-600 leading-relaxed mb-4">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Notificações push</div>
+        <p className="text-sm text-slate-300 leading-relaxed mb-4">
           Ative para receber um alerta às <strong>10h30</strong> no dia do check-in de cada reserva. Funciona mesmo com o app fechado.
         </p>
         {state.notificationsEnabled
-          ? <div className="text-sm text-emerald-700 bg-emerald-50 rounded-lg p-3 border border-emerald-200 flex items-center gap-2">
+          ? <div className="text-sm text-emerald-200 bg-emerald-500/10 rounded-lg p-3 border border-emerald-500/20 flex items-center gap-2">
               <Icon type="checkmark" className="w-5 h-5 flex-shrink-0" />
               Notificações ativadas neste dispositivo
             </div>
@@ -619,8 +673,8 @@ function TabConfig({ state, setState }) {
       </div>
 
       <div className="card card-hover animate-slide-up">
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Dados</div>
-        <p className="text-sm text-slate-600 leading-relaxed mb-4">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Dados</div>
+        <p className="text-sm text-slate-300 leading-relaxed mb-4">
           Os dados ficam salvos no seu dispositivo. Exportar cria um backup em JSON.
         </p>
         <div className="flex gap-2">
@@ -677,29 +731,35 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (getNotificationPermission() === "granted") {
+      setState(s => s.notificationsEnabled ? s : { ...s, notificationsEnabled: true });
+    }
+  }, [setState]);
+
   const copy = text => { navigator.clipboard.writeText(text).catch(() => { }); setToast(true); setTimeout(() => setToast(false), 2000); };
 
   if (!state) return <div className="flex items-center justify-center h-screen text-sm text-slate-400">Carregando...</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-violet-50 max-w-md mx-auto px-4 pt-4 pb-28">
-      <div className="mb-6 animate-slide-down">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent mb-1 flex items-center gap-2">
+    <div className="app-shell min-h-screen max-w-md mx-auto px-4 pt-8 pb-28">
+      <div className="mb-7 animate-slide-down">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-300 via-cyan-200 to-white bg-clip-text text-transparent mb-1 flex items-center gap-2">
           <Icon type="home" className="w-8 h-8 text-violet-600" />
           Meus Flats
         </h1>
-        <p className="text-xs text-slate-500 ml-10">Gerencie reservas e diárias</p>
+        <p className="text-xs text-slate-400 ml-10">Gerencie reservas e diárias</p>
       </div>
 
-      <div className="flex gap-1 bg-white rounded-xl p-1 mb-6 shadow-sm border border-slate-200 animate-slide-down">
+      <div className="flex gap-1 rounded-xl p-1 mb-6 border border-slate-700/60 bg-slate-950/70 shadow-sm animate-slide-down">
         {TABS.map(t => (
           <button 
             key={t.id} 
             onClick={() => setTab(t.id)} 
             className={`flex-1 py-2.5 px-2 text-xs font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1 ${
               tab === t.id
-                ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md scale-105 btn-hover-glow"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow-md scale-105 btn-hover-glow"
+                : "text-slate-400 hover:text-slate-100 hover:bg-slate-900/70"
             }`}
           >
             <Icon type={t.icon} className="w-3.5 h-3.5" />

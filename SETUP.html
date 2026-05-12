@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x1f3e0; Meus Flats &mdash; Guia de Setup</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="-meus-flats--guia-de-setup">🏠 Meus Flats — Guia de Setup</h1>
+<h2 id="o-que-você-vai-precisar">O que você vai precisar</h2>
+<ul>
+<li>Conta no GitHub (gratuito)</li>
+<li>Conta no Firebase (gratuito)</li>
+<li>Node.js instalado no computador</li>
+<li>iPhone com iOS 16.4+ e Safari</li>
+</ul>
+<hr>
+<h2 id="passo-1--criar-projeto-no-firebase">PASSO 1 — Criar projeto no Firebase</h2>
+<ol>
+<li>Acesse <a href="https://console.firebase.google.com">https://console.firebase.google.com</a></li>
+<li>Clique em <strong>&quot;Criar um projeto&quot;</strong> → dê um nome (ex: <code>meus-flats</code>)</li>
+<li>Desative o Google Analytics (não precisa) → <strong>Criar projeto</strong></li>
+</ol>
+<h3 id="1a-ativar-firestore">1a. Ativar Firestore</h3>
+<ul>
+<li>No menu lateral: <strong>Firestore Database</strong> → <strong>Criar banco de dados</strong></li>
+<li>Escolha <strong>&quot;Iniciar no modo de produção&quot;</strong></li>
+<li>Selecione a região <code>southamerica-east1</code> (São Paulo)</li>
+</ul>
+<p><strong>Regras de segurança</strong> — substitua as regras por:</p>
+<pre><code>rules_version = '2';
+service cloud.firestore.beta1 {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+</code></pre>
+<blockquote>
+<p>⚠️ Isso deixa o banco aberto. Para um app pessoal tudo bem, mas se quiser restringir depois é só configurar autenticação.</p>
+</blockquote>
+<h3 id="1b-ativar-cloud-messaging-fcm">1b. Ativar Cloud Messaging (FCM)</h3>
+<ul>
+<li>No menu lateral: <strong>Project Settings</strong> (ícone de engrenagem) → aba <strong>Cloud Messaging</strong></li>
+<li>Em <strong>&quot;Web Push certificates&quot;</strong>, clique em <strong>&quot;Generate key pair&quot;</strong></li>
+<li>Copie a <strong>VAPID Key</strong> gerada</li>
+</ul>
+<h3 id="1c-pegar-as-credenciais-do-app-web">1c. Pegar as credenciais do app web</h3>
+<ul>
+<li><strong>Project Settings</strong> → aba <strong>General</strong> → rolar até &quot;Your apps&quot;</li>
+<li>Clique em <strong>&quot;Add app&quot;</strong> → ícone Web (<code>&lt;/&gt;</code>)</li>
+<li>Registre o app (nickname: <code>meus-flats-web</code>)</li>
+<li>Copie o objeto <code>firebaseConfig</code> exibido</li>
+</ul>
+<hr>
+<h2 id="passo-2--preencher-as-credenciais-no-código">PASSO 2 — Preencher as credenciais no código</h2>
+<h3 id="abra-srcfirebasejs-e-substitua">Abra <code>src/firebase.js</code> e substitua:</h3>
+<pre><code class="language-js"><span class="hljs-keyword">const</span> firebaseConfig = {
+  <span class="hljs-attr">apiKey</span>:            <span class="hljs-string">&quot;AIzaSy...&quot;</span>,     <span class="hljs-comment">// ← cole aqui</span>
+  <span class="hljs-attr">authDomain</span>:        <span class="hljs-string">&quot;meus-flats.firebaseapp.com&quot;</span>,
+  <span class="hljs-attr">projectId</span>:         <span class="hljs-string">&quot;meus-flats&quot;</span>,
+  <span class="hljs-attr">storageBucket</span>:     <span class="hljs-string">&quot;meus-flats.appspot.com&quot;</span>,
+  <span class="hljs-attr">messagingSenderId</span>: <span class="hljs-string">&quot;123456789&quot;</span>,
+  <span class="hljs-attr">appId</span>:             <span class="hljs-string">&quot;1:123:web:abc&quot;</span>,
+};
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-variable constant_">VAPID_KEY</span> = <span class="hljs-string">&quot;BK...&quot;</span>;    <span class="hljs-comment">// ← cole a VAPID key aqui</span>
+</code></pre>
+<h3 id="abra-publicfirebase-messaging-swjs-e-cole-as-mesmas-credenciais">Abra <code>public/firebase-messaging-sw.js</code> e cole as <strong>mesmas credenciais</strong></h3>
+<hr>
+<h2 id="passo-3--criar-o-repositório-no-github">PASSO 3 — Criar o repositório no GitHub</h2>
+<pre><code class="language-bash"><span class="hljs-comment"># No terminal, dentro da pasta airbnb-pwa:</span>
+git init
+git add .
+git commit -m <span class="hljs-string">&quot;feat: primeiro commit&quot;</span>
+git branch -M main
+
+<span class="hljs-comment"># Crie um repositório chamado &quot;airbnb&quot; no GitHub.com, depois:</span>
+git remote add origin https://github.com/SEU_USUARIO/airbnb.git
+git push -u origin main
+</code></pre>
+<h3 id="ativar-github-pages">Ativar GitHub Pages</h3>
+<ol>
+<li>No repositório → <strong>Settings</strong> → <strong>Pages</strong></li>
+<li>Em <strong>Source</strong>: selecione <strong>&quot;GitHub Actions&quot;</strong></li>
+</ol>
+<p>O primeiro deploy roda automaticamente. Em ~2 minutos o app estará em:
+<code>https://SEU_USUARIO.github.io/airbnb/</code></p>
+<hr>
+<h2 id="passo-4--configurar-a-secret-do-firebase-para-notificações">PASSO 4 — Configurar a secret do Firebase (para notificações)</h2>
+<ol>
+<li>No Firebase Console → <strong>Project Settings</strong> → aba <strong>Service accounts</strong></li>
+<li>Clique em <strong>&quot;Generate new private key&quot;</strong> → baixa um arquivo JSON</li>
+<li>No GitHub → <strong>Settings</strong> → <strong>Secrets and variables</strong> → <strong>Actions</strong></li>
+<li>Clique em <strong>&quot;New repository secret&quot;</strong>:
+<ul>
+<li><strong>Name:</strong> <code>FIREBASE_SERVICE_ACCOUNT</code></li>
+<li><strong>Value:</strong> cole todo o conteúdo do arquivo JSON baixado</li>
+</ul>
+</li>
+<li>Salvar</li>
+</ol>
+<hr>
+<h2 id="passo-5--instalar-no-iphone">PASSO 5 — Instalar no iPhone</h2>
+<ol>
+<li>Abra o link <code>https://SEU_USUARIO.github.io/airbnb/</code> no <strong>Safari</strong></li>
+<li>Toque no botão de compartilhar (quadrado com seta)</li>
+<li><strong>&quot;Adicionar à Tela de Início&quot;</strong> → <strong>Adicionar</strong></li>
+<li>Abra o app pelo ícone criado</li>
+<li>Vá em <strong>⚙️ Config</strong> → <strong>&quot;Ativar notificações&quot;</strong> → aceite a permissão</li>
+</ol>
+<hr>
+<h2 id="passo-6--testar-as-notificações">PASSO 6 — Testar as notificações</h2>
+<p>Para testar sem esperar até 10h30:</p>
+<ol>
+<li>No GitHub → aba <strong>Actions</strong> → <strong>&quot;Enviar notificações de check-in&quot;</strong></li>
+<li>Clique em <strong>&quot;Run workflow&quot;</strong></li>
+<li>Se tiver alguma reserva com check-in hoje, chegará a notificação</li>
+</ol>
+<hr>
+<h2 id="observações-importantes">Observações importantes</h2>
+<ul>
+<li>O app funciona <strong>offline</strong> depois da primeira abertura (PWA cache)</li>
+<li>Os dados ficam no <strong>localStorage</strong> do Safari + <strong>Firestore</strong> (para notificações)</li>
+<li>Se trocar de iPhone, abra o app no novo, vá em Config e reimporte o backup</li>
+<li>O cron do GitHub Actions pode ter atraso de até 10 minutos</li>
+</ul>
+<hr>
+<h2 id="atualizar-o-app">Atualizar o app</h2>
+<p>Sempre que fizer mudanças e rodar <code>git push</code>, o GitHub Actions faz o deploy automaticamente.</p>
+
+            
+            
+        </body>
+        </html>

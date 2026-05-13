@@ -1,6 +1,57 @@
 import { useState, useEffect, useCallback } from "react";
 import { requestNotificationPermission, getNotificationPermission, onForegroundMessage, saveReservaRemota, deleteReservaRemota } from "./firebase.js";
 
+// ─── CALENDAR STRIP ──────────────────────────────────────────────────────────
+function CalendarStrip({ reservas, flats }) {
+  const today = todayStr();
+  const checkinsByDate = {};
+
+  reservas.forEach(r => {
+    if (r.checkin && r.checkin >= today) {
+      checkinsByDate[r.checkin] = r.flatId;
+    }
+  });
+
+  const days = [];
+  const startDate = new Date(today);
+
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const dateStr = d.toISOString().split('T')[0];
+    const dayNum = d.getDate();
+    const hasCheckin = checkinsByDate[dateStr];
+    const isToday = dateStr === today;
+
+    days.push({ dateStr, dayNum, hasCheckin, isToday });
+  }
+
+  return (
+    <div className="px-4 pb-3 overflow-x-auto">
+      <div className="flex gap-1.5 min-w-min">
+        {days.map(day => {
+          const theme = day.hasCheckin ? flatTheme(checkinsByDate[day.dateStr]) : null;
+          return (
+            <div
+              key={day.dateStr}
+              className={`flex flex-col items-center justify-center rounded-lg px-2 py-2 min-w-fit text-[11px] font-medium transition-all ${
+                day.isToday
+                  ? 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/30'
+                  : 'bg-slate-900/50 text-slate-400'
+              }`}
+            >
+              <span className="leading-tight">{day.dayNum}</span>
+              {day.hasCheckin && (
+                <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${theme.dot}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── ICON COMPONENT ──────────────────────────────────────────────────────────
 function Icon({ type, className = "w-5 h-5", animated = false }) {
   const icons = {
@@ -702,7 +753,7 @@ function TabConfig({ state, setState }) {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "reservas", label: "Reservas", icon: "calendar" },
-  { id: "flats", label: "Flats", icon: "home" },
+  { id: "flats", label: "Diárias", icon: "home" },
   { id: "auth", label: "Autorização", icon: "clipboard" },
   { id: "config", label: "Config", icon: "settings" },
 ];
@@ -749,6 +800,11 @@ export default function App() {
           Meus Flats
         </h1>
         <p className="text-xs text-slate-400 ml-10">Gerencie reservas e diárias</p>
+      </div>
+
+      <div className="mb-4 animate-slide-down">
+        <div className="text-[9px] text-slate-500 uppercase tracking-wider px-4 mb-2">Próximas reservas</div>
+        <CalendarStrip reservas={state.reservas} flats={state.flats} />
       </div>
 
       <div className="flex gap-1 rounded-xl p-1 mb-6 border border-slate-700/60 bg-slate-950/70 shadow-sm animate-slide-down">
